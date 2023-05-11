@@ -1,7 +1,7 @@
 // UTILITY FILE, DO NOT EDIT
 // EDIT OTHER FILES IN REPO FOR RESULTS
 
-include <gridfinity-constants.scad>
+include <constants.scad>
 
 // ===== User Modules ===== //
 
