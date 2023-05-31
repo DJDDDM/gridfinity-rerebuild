@@ -6,17 +6,7 @@ dock = import(dock_path);
 
 module item()
 {
-    s = 10;
-    attachable(size=[s*3,s,2*s]) {
-        union() {
-            xcopies(2*s) color_this("green") cuboid(s, anchor = CENTER) attach(TOP,BOT) color_this("purple") cuboid(s, anchor = CENTER);
-            xcyl(h=2*s, d=s/4);
-        }
-        show_anchors();
-    }
-
-
-    *pinboard() attach(BOT,BOT) show_anchors();
+    pinboard() show_anchors();
 }
 
 module dock()
@@ -125,13 +115,13 @@ module pinboard_cylinders(clipped)
 
 module pinboard_position()
 {
-    tag_conv_hull(tag = "board", keep = "pin children")
+    down(wall_thickness + board_thickness/2) tag_conv_hull(tag = "board", keep = "pin children")
         grid_copies(spacing = hole_spacing, size = [ holder_total_x + epsilon, holder_height + epsilon ]) children();
 }
 
 module pinboard()
 {
-    attachable(size = [ holder_total_x + epsilon, holder_height + epsilon, 2 * wall_thickness ], cp = [0,0,-wall_thickness - 0.5 * board_thickness], offset = [0,0,+wall_thickness + 0.5*board_thickness], anchor = TOP )
+    attachable(size = [ holder_total_x + epsilon + pin_diameter, holder_height + epsilon + pin_diameter, 2 * wall_thickness + board_thickness ])
     {
         union()
         {
@@ -142,6 +132,4 @@ module pinboard()
         }
         children();
     };
-
-    // fwd(hole_spacing) ruler(10, labels = true, orient = LEFT);
 }
