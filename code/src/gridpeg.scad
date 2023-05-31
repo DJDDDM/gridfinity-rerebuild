@@ -1,3 +1,25 @@
+include <../src/utility.scad>
+include <pegboard.scad>
+
+module gridfinity_pegboard()
+{
+    union()
+    {
+        pinboard();
+        pinboard_clips();
+        baseplate_position() gridfinityBaseplate(gridx, gridy, length, distancex, distancey, style_plate, enable_magnet, style_hole, fitx, fity);
+    }
+    module baseplate_position(){
+        x_offset = 0.5 * grid_total_x + outer_wall_x_distance; // -wall_line_width;
+        off = calculate_off(style_plate, enable_magnet, style_hole);
+        z_offset = hole_spacing - calculate_off(style_plate, enable_magnet, style_hole) + 0.5*hole_size;
+        translate([-x_offset,0,-z_offset])
+        children();
+    }
+}
+
+// ===== CONSTRUCTION ===== //
+
 module gridfinityBaseplate(gridx, gridy, length, dix, diy, sp, sm, sh, fitx, fity)
 {
 
@@ -16,41 +38,84 @@ module gridfinityBaseplate(gridx, gridy, length, dix, diy, sp, sm, sh, fitx, fit
 
     difference()
     {
-        translate([ offsetx, offsety, h_base ]) mirror([ 0, 0, 1 ]) rounded_rectangle(dx, dy, h_base + off, r_base);
+        // base structure
+        color("Red")
+            // rectangle z = -off -> h_base
+            translate([ offsetx, offsety, h_base ])
+            // rectangle z = -(h_base + off) -> 0
+            mirror([ 0, 0, 1 ])
+            // rectangle z 0->(h_base + off)
+            rounded_rectangle(dx, dy, h_base + off, r_base);
 
-        gridfinityBase(gx, gy, length, 1, 1, 0, 0.5, false);
+        // base - cut off: z = -off -> h_base - 0.6 => z_height = h_base + off - 0.6
+        // cuts off base structure at z = h_base - 0.6
+        color("Blue")
+            // rectangle z = (h_base - 0.6) -> (3*h_base - 0.6)
+            translate([ offsetx, offsety, h_base - 0.6 ])
+            // rectangle z = 0->2*h_base
+            rounded_rectangle(dx * 2, dy * 2, h_base * 2, r_base);
 
-        translate([ offsetx, offsety, h_base - 0.6 ]) rounded_rectangle(dx * 2, dy * 2, h_base * 2, r_base);
+        // gridfinity bins. used as a negative.
+        color("Green") gridfinityBase(gx, gy, length, 1, 1, 0, 0.5, false);
 
-        pattern_linear(gx, gy, length)
-        {
-            render(convexity = 6)
-            {
-                if (sm)
-                    block_base_hole(1);
-
-                if (sp == 1)
-                    translate([ 0, 0, -off ]) cutter_weight();
-                else if (sp == 2 || sp == 3)
-                    linear_extrude(10 * (h_base + off), center = true) profile_skeleton();
-                else if (sp == 4)
-                    translate([ 0, 0, -5 * (h_base + off) ])
-                        rounded_square(length - 2 * r_c2 - 2 * r_c1, 10 * (h_base + off), r_fo3);
-
-                hole_pattern()
-                {
-                    if (sm)
-                        block_base_hole(1);
-
-                    translate([ 0, 0, -off ]) if (sh == 1) cutter_countersink();
-                    else if (sh == 2) cutter_counterbore();
-                }
-            }
-        }
-        if (sp == 3 || sp == 4)
+        // specific pattern for holder type
+        color("Grey") pattern_linear(gx, gy, length) gridfinity_pattern(sp, sm, sh);
+        if (screw_together)
             cutter_screw_together(gx, gy, off);
     }
 }
+
+module gridfinity_pattern(sp, sm, sh)
+{
+    off = calculate_off(sp, sm, sh);
+    render(convexity = 6)
+    {
+        if (sm)
+            block_base_hole(1);
+
+        if (sp == 1)
+            translate([ 0, 0, -off ]) cutter_weight();
+        else if (sp == 2 || sp == 3)
+            linear_extrude(10 * (h_base + off), center = true) profile_skeleton();
+        else if (sp == 4)
+            translate([ 0, 0, -5 * (h_base + off) ])
+                rounded_square(length - 2 * r_c2 - 2 * r_c1, 10 * (h_base + off), r_fo3);
+
+        hole_pattern()
+        {
+            if (sm)
+                block_base_hole(1);
+
+            translate([ 0, 0, -off ]) if (sh == 1) cutter_countersink();
+            else if (sh == 2) cutter_counterbore();
+        }
+    }
+}
+
+////long form:
+// if (sh == 0){
+//     helper_sh = d_screw;
+// } else if (sh == 1){
+//     helper_sh = d_cs;
+// } else if (sh == 2) {
+//     helper_sh = h_cb;
+// } else {
+//     assert(false); //should not have reached here
+// }
+//
+// helper_sm = sm ? h_hole : 0;
+//
+// if (sp == 0) { //thin
+//     off_helper_variable = 0;
+// } else if (sp == 1) { //weighted
+//     off_helper_variable = bp_h_bot;
+// } else if (sp == 2) { //skeletonized
+//     off_helper_variable = h_skel + help_sm + helper_sh;
+// } else if (sp == 3 || sp == 4) { //screw together
+//     off_helper_variable = 6.75;
+// } else {
+//     assert(false); //should not have reached here
+// }
 
 function calculate_off(sp, sm, sh) = screw_together ? 6.75
                                      : sp == 0      ? 0
