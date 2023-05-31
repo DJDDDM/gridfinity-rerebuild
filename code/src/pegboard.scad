@@ -13,37 +13,26 @@ module dock()
 {
     xcopies(spacing = dock.spacing, n = dock.amount)
     {
-        skewed_hook();
+        hook(type = dock.hook_type, index = $idx);
     }
 }
 
-module skewed_hook()
-{
-    cylinder(h = dock_height, d = dock_diameter);
-}
-
-module hook_position()
-{
-    translate([ -outer_wall_x_distance, 0, -0.5 * holder_total_z ]) rotate([ 0, -90, 0 ]) rotate([ 0, 20, 0 ])
-        children();
-}
-
-module hook_offset()
-{
-    difference()
-    {
-        hook_position() translate([ 0, 0, -dock_height ]) cylinder(h = dock_height, d = dock_diameter);
-        translate([ 0, -0.5 * arbitrary_big_value, 0.5 * arbitrary_big_value ]) pinboard_position()
-            cube(arbitrary_big_value);
+module hook(type, index){
+    if (type == "skewed_hook"){
+        skewed_hook(index = index);
+    } else {
+        echo(type);
+        assert(false, "should not have reached here");
     }
 }
 
-module hook()
+module skewed_hook(index)
 {
-    hook_position()
-    {
-        cylinder(h = dock_height, d = dock_diameter);
+    skew(ayz = -20) difference(){
+        zcyl(h = dock.heights[index], d = dock.diameters[index]);
+        nail(h = dock.heights[index], d = dock.diameters[index]-4*wall_thickness);
     }
+
 }
 
 module clipped_pin()
@@ -115,7 +104,7 @@ module pinboard_cylinders(clipped)
 module pinboard_position()
 {
     up(0.5 * board_thickness) tag_conv_hull(tag = "board", keep = "pin")
-        grid_copies(spacing = hole_spacing, n = [2,2]) children();
+        grid_copies(spacing = hole_spacing, n = [4,2]) children();
 }
 
 module pinboard()
