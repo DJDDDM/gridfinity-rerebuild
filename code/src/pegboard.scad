@@ -6,12 +6,11 @@ dock = import(dock_path);
 
 module item()
 {
-    pinboard() show_anchors();
+    pinboard() attach(TOP,BOT) dock();
 }
 
 module dock()
 {
-
     xcopies(spacing = dock.spacing, n = dock.amount)
     {
         skewed_hook();
@@ -104,28 +103,28 @@ module pinboard_cylinders(clipped)
 {
     if (clipped)
     {
-        color_this("green") cylinder(h = 2 * wall_thickness, d = pin_diameter) children();
+        color_this("green") zcyl(h = 2 * wall_thickness, d = pin_diameter) children();
     }
     else
     {
-        color_this("red") linear_sweep(region = octagon(id = pin_diameter, realign = true), h = 2 * wall_thickness)
+        color_this("red") linear_sweep(region = octagon(id = pin_diameter, realign = true), h = 2 * wall_thickness, center = true)
             children();
     }
 }
 
 module pinboard_position()
 {
-    down(wall_thickness + board_thickness/2) tag_conv_hull(tag = "board", keep = "pin children")
-        grid_copies(spacing = hole_spacing, size = [ holder_total_x + epsilon, holder_height + epsilon ]) children();
+    up(0.5 * board_thickness) tag_conv_hull(tag = "board", keep = "pin")
+        grid_copies(spacing = hole_spacing, n = [2,2]) children();
 }
 
 module pinboard()
 {
-    attachable(size = [ holder_total_x + epsilon + pin_diameter, holder_height + epsilon + pin_diameter, 2 * wall_thickness + board_thickness ])
+    attachable(size = [ holder_total_x + pin_diameter, holder_height + pin_diameter, 2 * wall_thickness + board_thickness ])
     {
         union()
         {
-            pinboard_position() pinboard_cylinders($row == 0) attach(TOP, BOT)
+            pinboard_position() pinboard_cylinders($row == 0) attach(BOT, BOT)
             {
                 tag("pin") pin($row == 0);
             }
