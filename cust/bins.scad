@@ -1,4 +1,4 @@
-include <gridfinity-rebuilt-utility.scad>
+include <../src/utility.scad>
 
 // ===== INFORMATION ===== //
 /*

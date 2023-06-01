@@ -1,4 +1,4 @@
-include <../src/utility.scad>
+include <utility.scad>
 include <pegboard.scad>
 
 module gridfinity_pegboard()
