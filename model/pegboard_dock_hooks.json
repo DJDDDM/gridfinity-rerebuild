@@ -1,0 +1,17 @@
+{
+    "hook_type": "skewed_hook",
+    "amount": 4,
+    "spacing": 21,
+    "heights": [
+        34,
+        34,
+        34,
+        34
+    ],
+    "diameters": [
+        2.4,
+        3,
+        6,
+        8
+    ]
+}
