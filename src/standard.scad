@@ -17,6 +17,7 @@ r_fo2 = 3.2;
 r_fo3 = 1.6; 
 // length of a grid unit
 l_grid = 42;
+grid_length = l_grid;
 
 // screw hole radius
 r_hole1 = 1.5;  
