@@ -1,7 +1,6 @@
 include <BOSL2/rounding.scad>
 include <BOSL2/std.scad>
 
-height_units = 5;
 $fn = 30;
 
 // gridfinity standard
@@ -11,6 +10,7 @@ lip_standard_path = "../model/gridfinity_standard/lip.json";
 upper_standard_path = "../model/gridfinity_standard/upper.json";
 bottom_standard_path = "../model/gridfinity_standard/bottom.json";
 block_standard_path = "../model/gridfinity_standard/block.json";
+front_standard_path = "../model/gridfinity_standard/front.json";
 
 // helpers
 math_constants_path = "../model/math_constants.json";
@@ -25,6 +25,7 @@ lip = import(lip_standard_path);
 upper = import(upper_standard_path);
 bottom = import(bottom_standard_path);
 block = import(block_standard_path);
+front = import(front_standard_path);
 
 // alternatives
 lipless_lip = import("../model/gridfinity_alternatives/lipless/lip.json");
@@ -38,15 +39,44 @@ input = import(input_path);
 
 gridfinity_bin();
 
+*left(50) intersect() bottom()
+{
+    tag("intersect") front(model = front);
+};
+*bottom() front(front);
+
 module gridfinity_bin()
 {
     difference()
     {
-        *lip(model = lip) attach(BOT, TOP) upper(model = upper) attach(BOT, TOP) middle() attach(BOT, TOP) bottom()
-            position(BOT) block(model = block);
-        lip(model = lipless_lip) attach(BOT, TOP) upper(model = lipless_upper) attach(BOT, TOP) middle()
+        lip(model = lip) attach(BOT, TOP) upper(model = upper) attach(BOT, TOP) middle() attach(BOT, TOP) bottom()
+        {
+            front(model = front);
+            block(model = block);
+        }
+        *lip(model = lipless_lip) attach(BOT, TOP) upper(model = lipless_upper) attach(BOT, TOP) middle()
             attach(BOT, TOP) bottom() position(BOT) block(model = block);
         clearance();
+    }
+}
+
+module front(model)
+{
+
+    back(bin.wall_thickness + model.spacer_distance) up(model.slope_offset) slope();
+
+    module slope()
+    {
+        front_length = standard.length - 2 * bin.wall_thickness;
+        difference()
+        {
+            union(){
+                cuboid(size = [ front_length, model.slope_radius, model.slope_radius ], anchor = BOT + BACK) attach(FRONT, BACK)
+                fwd(model.slope_offset) cuboid( size = [front_length, model.spacer_distance, bin.height_unit * (input.height_units - 1)] );
+            }
+            color_this("green") pie_slice(h = front_length, r = model.slope_radius, ang = 90, spin = 180, orient = LEFT,
+                                          anchor = CENTER + RIGHT);
+        }
     }
 }
 
@@ -68,20 +98,20 @@ module block(model)
 
         module first_part()
         {
-            wall_part(height = model.height1 + math.epsilon, bottom_width = model.width1, top_width = model.width0 + math.epsilon)
-                children();
+            wall_part(height = model.height1 + math.epsilon, bottom_width = model.width1,
+                      top_width = model.width0 + math.epsilon) children();
         }
 
         module second_part()
         {
-            color_this("red") wall_part(height = model.height2 + math.epsilon, bottom_width = model.width2, top_width = model.width1)
-                children(); // anchor needed
+            color_this("red") wall_part(height = model.height2 + math.epsilon, bottom_width = model.width2,
+                                        top_width = model.width1) children();
         }
 
         module third_part()
         {
-            color_this("darkgreen")
-                wall_part(height = model.height3 + math.epsilon, bottom_width = model.width3, top_width = model.width2) children();
+            color_this("darkgreen") wall_part(height = model.height3 + math.epsilon, bottom_width = model.width3,
+                                              top_width = model.width2) children();
         }
     }
 
@@ -95,8 +125,8 @@ module block(model)
 
         module solid()
         {
-            cuboid(size = [ standard.length - math.epsilon, standard.length - math.epsilon, bin.height_unit ], rounding = standard.outer_rounding,
-                   edges = "Z", anchor = TOP) children();
+            cuboid(size = [ standard.length - math.epsilon, standard.length - math.epsilon, bin.height_unit ],
+                   rounding = standard.outer_rounding, edges = "Z", anchor = TOP) children();
         }
 
         module hole_distributor()
@@ -219,7 +249,8 @@ module wall_part(height, bottom_width, top_width)
     if (height > 0 && bottom_width > 0 && top_width > 0)
     {
         rect_tube(h = height, size = standard.length, isize1 = standard.length - 2 * bottom_width,
-                  isize2 = standard.length - 2 * top_width, rounding = standard.outer_rounding, anchor = TOP) children();
+                  isize2 = standard.length - 2 * top_width, rounding = standard.outer_rounding, anchor = TOP)
+            children();
     }
     else
     {
