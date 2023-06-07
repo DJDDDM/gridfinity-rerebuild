@@ -1,4 +1,5 @@
 {
     "wall_thickness": 1.2,
-    "height_unit": 7
+    "height_unit": 7,
+    "lip_height": 4.646
 }

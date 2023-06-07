@@ -1,7 +1,8 @@
+include <BOSL2/rounding.scad>
 include <BOSL2/std.scad>
 
 height_units = 5;
-$fn = 40;
+$fn = 30;
 
 // gridfinity standard
 general_standard_path = "../model/gridfinity_standard/general.json";
@@ -9,6 +10,7 @@ bin_standard_path = "../model/gridfinity_standard/bin.json";
 lip_standard_path = "../model/gridfinity_standard/lip.json";
 upper_standard_path = "../model/gridfinity_standard/upper.json";
 bottom_standard_path = "../model/gridfinity_standard/bottom.json";
+block_standard_path = "../model/gridfinity_standard/block.json";
 
 // helpers
 math_constants_path = "../model/math_constants.json";
@@ -22,6 +24,11 @@ bin = import(bin_standard_path);
 lip = import(lip_standard_path);
 upper = import(upper_standard_path);
 bottom = import(bottom_standard_path);
+block = import(block_standard_path);
+
+// alternatives
+lipless_lip = import("../model/gridfinity_alternatives/lipless/lip.json");
+lipless_upper = import("../model/gridfinity_alternatives/lipless/upper.json");
 
 // helpers
 math = import(math_constants_path);
@@ -35,25 +42,92 @@ module gridfinity_bin()
 {
     difference()
     {
-        lip() attach(BOT, TOP) upper() attach(BOT, TOP) middle() attach(BOT, TOP) bottom() attach(BOT,TOP) block();
+        *lip(model = lip) attach(BOT, TOP) upper(model = upper) attach(BOT, TOP) middle() attach(BOT, TOP) bottom()
+            position(BOT) block(model = block);
+        lip(model = lipless_lip) attach(BOT, TOP) upper(model = lipless_upper) attach(BOT, TOP) middle()
+            attach(BOT, TOP) bottom() position(BOT) block(model = block);
         clearance();
     }
 }
 
 module clearance()
 {
-    rect_tube(h = bin.height_unit * input.height_units, size = standard.length, wall = standard.clearance,
-              rounding = standard.outer_rounding, anchor = TOP);
+    rect_tube(h = bin.height_unit * input.height_units + bin.lip_height, size = standard.length + 2 * math.epsilon,
+              wall = standard.clearance, rounding = standard.outer_rounding, anchor = TOP);
 }
 
-module block(){
-    color_this("#497")
-            cuboid(size = [standard.length, standard.length, bin.height_unit], rounding = standard.outer_rounding, edges = "Z") children();
+module block(model)
+{
+    main(model = model);
+
+    module profile(model = model)
+    {
+        down(model.height0) first_part();
+        down(model.height0 + model.height1) second_part();
+        down(model.height0 + model.height1 + model.height2) third_part();
+
+        module first_part()
+        {
+            wall_part(height = model.height1 + math.epsilon, bottom_width = model.width1, top_width = model.width0 + math.epsilon)
+                children();
+        }
+
+        module second_part()
+        {
+            color_this("red") wall_part(height = model.height2 + math.epsilon, bottom_width = model.width2, top_width = model.width1)
+                children(); // anchor needed
+        }
+
+        module third_part()
+        {
+            color_this("darkgreen")
+                wall_part(height = model.height3 + math.epsilon, bottom_width = model.width3, top_width = model.width2) children();
+        }
+    }
+
+    module main(model = model)
+    {
+        diff("hole profile") solid()
+        {
+            attach(TOP, BOT) color_this([ 0.9, 0.2, 0.3, 1 ]) tag("hole") hole_distributor() hole();
+            position(TOP) tag("profile") profile(model);
+        }
+
+        module solid()
+        {
+            cuboid(size = [ standard.length - math.epsilon, standard.length - math.epsilon, bin.height_unit ], rounding = standard.outer_rounding,
+                   edges = "Z", anchor = TOP) children();
+        }
+
+        module hole_distributor()
+        {
+            down(bin.height_unit) grid_copies(spacing = 26, size = [ standard.length, standard.length ]) children();
+        }
+
+        module hole()
+        {
+            union()
+            {
+                screw_hole();
+                magnet_hole();
+            }
+        }
+
+        module screw_hole()
+        {
+            zcyl(h = model.screw_depth, d = model.screw_diameter, anchor = BOT);
+        }
+
+        module magnet_hole()
+        {
+            zcyl(h = model.magnet_depth, d = model.magnet_diameter, anchor = BOT);
+        }
+    }
 }
 
 module bottom()
 {
-    first_part() attach(BOT,TOP) second_part() children();
+    first_part() attach(BOT, TOP) second_part() children();
 
     module first_part()
     {
@@ -64,8 +138,8 @@ module bottom()
 
     module second_part()
     {
-        color_this("#123")
-            cuboid(size = [standard.length, standard.length, bottom.height2], rounding = standard.outer_rounding, edges = "Z") children();
+        color_this("#123") cuboid(size = [ standard.length, standard.length, bottom.height2 ],
+                                  rounding = standard.outer_rounding, edges = "Z") children();
     }
 }
 
@@ -81,57 +155,88 @@ module middle()
     }
 }
 
-module upper()
+module upper(model)
 {
     first_part() attach(BOT, TOP) second_part() attach(BOT, TOP) third_part() children();
 
     module first_part()
     {
-        color_this("blue")
-            rect_tube(h = upper.height1, size = standard.length, isize1 = standard.length - 2 * upper.width1,
-                      isize2 = standard.length - 2 * lip.width3, rounding = standard.outer_rounding)
-                children();
+        color_this("blue") wall_part(height = model.height1, bottom_width = model.width1, top_width = model.width0)
+            children();
     }
 
     module second_part()
     {
-        color_this("green")
-            rect_tube(h = upper.height2, size = standard.length, isize1 = standard.length - 2 * upper.width2,
-                      isize2 = standard.length - 2 * lip.width1, rounding = standard.outer_rounding)
-                children();
+        color_this("green") wall_part(height = model.height2, bottom_width = model.width2, top_width = model.width1)
+            children();
     }
 
     module third_part()
     {
-        color_this("red")
-            rect_tube(h = upper.height3, size = standard.length, isize1 = standard.length - 2 * upper.width3,
-                      isize2 = standard.length - 2 * upper.width2, rounding = standard.outer_rounding)
-                children();
+        color_this("red") wall_part(height = model.height3, bottom_width = model.width3, top_width = model.width2)
+            children();
     }
 }
 
-module lip()
+module lip(model)
 {
     first_part() attach(BOT, TOP) second_part() attach(BOT, TOP) third_part() children();
+
     module first_part()
     {
-        color_this("purple")
-            rect_tube(h = lip.height1, size = standard.length, isize1 = standard.length - 2 * lip.width1,
-                      isize2 = standard.length - 2 * math.epsilon, rounding = standard.outer_rounding,
-                      anchor = TOP) children();
+        path = rect(size = standard.length - 2 * model.width1, rounding = standard.outer_rounding - model.width1);
+        shape = safe_rounded_triangle_path(width = model.width1, height = model.height1,
+                                           radius = model.upper_rounding_radius);
+        if (is_path(shape) == true)
+        {
+            path_sweep(shape = shape, path = path, closed = true, anchor = TOP) children();
+        }
+        else
+        {
+            attachable()
+            {
+                fake_attachable();
+                children();
+            }
+        };
     }
 
     module second_part()
     {
-        color_this("red") rect_tube(h = lip.height2, size = standard.length, isize1 = standard.length - 2 * lip.width2,
-                                     isize2 = standard.length - 2 * lip.width1, rounding = standard.outer_rounding) children();
+        color_this("red") wall_part(height = model.height2, bottom_width = model.height2, top_width = model.height1)
+            children();
     }
 
     module third_part()
     {
-        color_this("firebrick")
-            rect_tube(h = lip.height3, size = standard.length, isize1 = standard.length - 2 * lip.width3,
-                      isize2 = standard.length - 2 * lip.width2, rounding = standard.outer_rounding)
-                children();
+        color_this("firebrick") wall_part(height = model.height3, bottom_width = model.width3, top_width = model.width2)
+            children();
     }
+}
+
+module wall_part(height, bottom_width, top_width)
+{
+    if (height > 0 && bottom_width > 0 && top_width > 0)
+    {
+        rect_tube(h = height, size = standard.length, isize1 = standard.length - 2 * bottom_width,
+                  isize2 = standard.length - 2 * top_width, rounding = standard.outer_rounding, anchor = TOP) children();
+    }
+    else
+    {
+        children();
+    }
+}
+
+function safe_rounded_triangle_path(width, height, radius) = (width > 0 && height > 0)
+                                                                 ? rounded_triangle_path(width = width, height = height,
+                                                                                         radius = radius)
+                                                                 : [[ 0, 0 ]];
+
+function rounded_triangle_path(width, height,
+                               radius) = let(straight_tip = [ [ 0, 0 ], [ width, 0 ], [ width, height ] ])
+    round_corners(straight_tip, radius = [ 0, 0, radius ]);
+
+module fake_attachable()
+{
+    % cube(math.epsilon);
 }

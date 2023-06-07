@@ -1,3 +1,4 @@
 {
-    "epsilon": 0.00000001
+    "epsilon": 0.0001,
+    "large_number": 1000
 }
