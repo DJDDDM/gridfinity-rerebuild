@@ -28,34 +28,32 @@ block = import(block_standard_path);
 front = import(front_standard_path);
 
 // alternatives
+// lipless
 lipless_lip = import("../model/gridfinity_alternatives/lipless/lip.json");
 lipless_upper = import("../model/gridfinity_alternatives/lipless/upper.json");
 
+// label
+closeable_label = import("../model/gridfinity_alternatives/closeable/label.json");
+
 // helpers
 math = import(math_constants_path);
+printer = import("../model/printer/fine.json");
 
 // changeables
 input = import(input_path);
 
 gridfinity_bin();
 
-*left(50) intersect() bottom()
-{
-    tag("intersect") front(model = front);
-};
-*bottom() front(front);
-
 module gridfinity_bin()
 {
     difference()
     {
-        lip(model = lip) attach(BOT, TOP) upper(model = upper) attach(BOT, TOP) middle() attach(BOT, TOP) bottom()
+        lip(lip) attach(BOT, TOP) upper(upper, closeable_label) attach(BOT, TOP) middle() attach(BOT, TOP) bottom()
         {
             front(model = front);
             block(model = block);
         }
-        *lip(model = lipless_lip) attach(BOT, TOP) upper(model = lipless_upper) attach(BOT, TOP) middle()
-            attach(BOT, TOP) bottom() position(BOT) block(model = block);
+
         clearance();
     }
 }
@@ -70,9 +68,11 @@ module front(model)
         front_length = standard.length - 2 * bin.wall_thickness;
         difference()
         {
-            union(){
-                cuboid(size = [ front_length, model.slope_radius, model.slope_radius ], anchor = BOT + BACK) attach(FRONT, BACK)
-                fwd(model.slope_offset) cuboid( size = [front_length, model.spacer_distance, bin.height_unit * (input.height_units - 1)] );
+            union()
+            {
+                cuboid(size = [ front_length, model.slope_radius, model.slope_radius ],
+                       anchor = BOT + BACK) attach(FRONT, BACK) fwd(model.slope_offset)
+                    cuboid(size = [ front_length, model.spacer_distance, height_for_units(units = input.units.z - 1) ]);
             }
             color_this("green") pie_slice(h = front_length, r = model.slope_radius, ang = 90, spin = 180, orient = LEFT,
                                           anchor = CENTER + RIGHT);
@@ -80,9 +80,11 @@ module front(model)
     }
 }
 
+function height_for_units(units) = bin.height_unit * units;
+
 module clearance()
 {
-    rect_tube(h = bin.height_unit * input.height_units + bin.lip_height, size = standard.length + 2 * math.epsilon,
+    rect_tube(h = height_for_units(input.units.z) + bin.lip_height, size = standard.length + 2 * math.epsilon,
               wall = standard.clearance, rounding = standard.outer_rounding, anchor = TOP);
 }
 
@@ -185,14 +187,75 @@ module middle()
     }
 }
 
-module upper(model)
+module upper(model, label)
 {
-    first_part() attach(BOT, TOP) second_part() attach(BOT, TOP) third_part() children();
+    !first_part() *attach(BOT, TOP) second_part() attach(BOT, TOP) third_part() * children();
 
     module first_part()
     {
-        color_this("blue") wall_part(height = model.height1, bottom_width = model.width1, top_width = model.width0)
+        height = is_def(label) ? label.label.z + label.holder.z : model.height1;
+        diff("hole")
+        {
+            color_this("blue") wall_part(height = height, bottom_width = model.width1, top_width = model.width0)
+            {
+                position(BOT) label(label);
+                position(RIGHT+BOT) color_this("pink") tag("hole") up(label.label.z) wall_hole();
+                children();
+            }
+        }
+
+        module wall_hole()
+        {
+            #cube(size =
+                     [
+                         upper.width1 + math.epsilon,
+                         label.cover.y + label.clearance.y,
+                         label.cover.z + label.clearance.z
+                     ],
+                 anchor = RIGHT + BOT);
+        }
+
+        module label(model)
+        {
+            diff("cover_hole")
+            {
+                cuboid(size = model.label, anchor = BOT)
+                {
+                    position(TOP) holders();
+                    position(FRONT) tag("cover_hole")
+                        cuboid(size = [ model.hole.x, model.hole.y, model.label.z + 3 * math.epsilon ], anchor = FRONT);
+                }
+            }
             children();
+
+            module holders()
+            {
+                xcopies(l = model.label.x, n = 2) holder(left = ($idx == 0));
+            }
+
+            module holder(left)
+            {
+                single_holder((left ? RIGHT : LEFT));
+            }
+
+            module single_holder(pos)
+            {
+                up(label.cover.z + label.clearance.z) cuboid(size = model.holder, anchor = TOP + -1 * pos )
+                {
+                    *position(pos + BOT) up(printer.support.z_offset) cuboid(
+                        [
+                            printer.support.line_width, model.holder.y - 2 * printer.support.xy_offset,
+                            model.cover.z + model.clearance.z - 2 * printer.support.z_offset
+                        ],
+                        anchor = pos + BOT);
+                }
+            }
+
+            module cover()
+            {
+                cuboid(model.cover);
+            }
+        }
     }
 
     module second_part()
