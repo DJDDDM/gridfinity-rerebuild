@@ -42,13 +42,22 @@ printer = import("../model/printer/fine.json");
 // changeables
 input = import(input_path);
 
-gridfinity_bin();
+function lip_height() = lip.height1 + lip.height2 + lip.height3;
+
+function x_length() = standard.length * input.units.x;
+function y_length() = standard.length * input.units.y;
+function total_height() = standard.length * input.units.z + bin.lip_height;
+
+//gridfinity_bin();
+
+upper(upper, closeable_label);
 
 module gridfinity_bin()
 {
     difference()
     {
-        lip(lip) attach(BOT, TOP) upper(upper, closeable_label) attach(BOT, TOP) middle() attach(BOT, TOP) bottom()
+        datum_plane() attach(BOT, TOP) lip(lip) attach(BOT, TOP) upper(upper, closeable_label) attach(BOT, TOP) middle()
+            attach(BOT, TOP) bottom()
         {
             front(model = front);
             block(model = block);
@@ -60,12 +69,13 @@ module gridfinity_bin()
 
 module front(model)
 {
-
-    back(bin.wall_thickness + model.spacer_distance) up(model.slope_offset) slope();
+    offset_to_grid = (y_length() - standard.length) / 2;
+    offset_to_outer_backwall = bin.wall_thickness + model.spacer_distance;
+    back(offset_to_outer_backwall - offset_to_grid) up(model.slope_offset) slope();
 
     module slope()
     {
-        front_length = standard.length - 2 * bin.wall_thickness;
+        front_length = x_length() - 2 * bin.wall_thickness;
         difference()
         {
             union()
@@ -74,8 +84,7 @@ module front(model)
                        anchor = BOT + BACK) attach(FRONT, BACK) fwd(model.slope_offset)
                     cuboid(size = [ front_length, model.spacer_distance, height_for_units(units = input.units.z - 1) ]);
             }
-            color_this("green") pie_slice(h = front_length, r = model.slope_radius, ang = 90, spin = 180, orient = LEFT,
-                                          anchor = CENTER + RIGHT);
+            cylinder(h = front_length, r = model.slope_radius, spin = 180, orient = LEFT, anchor = CENTER + RIGHT);
         }
     }
 }
@@ -84,8 +93,9 @@ function height_for_units(units) = bin.height_unit * units;
 
 module clearance()
 {
-    rect_tube(h = height_for_units(input.units.z) + bin.lip_height, size = standard.length + 2 * math.epsilon,
-              wall = standard.clearance, rounding = standard.outer_rounding, anchor = TOP);
+    up(bin.lip_height)
+        rect_tube(h = total_height(), size = [ x_length() + 2 * math.epsilon, y_length() + 2 * math.epsilon ],
+                  wall = standard.clearance, rounding = standard.outer_rounding, anchor = TOP);
 }
 
 module block(model)
@@ -100,28 +110,42 @@ module block(model)
 
         module first_part()
         {
-            wall_part(height = model.height1 + math.epsilon, bottom_width = model.width1,
-                      top_width = model.width0 + math.epsilon) children();
+            profile_part(height = model.height1 + math.epsilon, bottom_width = model.width1,
+                         top_width = model.width0 + math.epsilon) children();
         }
 
         module second_part()
         {
-            color_this("red") wall_part(height = model.height2 + math.epsilon, bottom_width = model.width2,
-                                        top_width = model.width1) children();
+            profile_part(height = model.height2 + math.epsilon, bottom_width = model.width2, top_width = model.width1)
+                children();
         }
 
         module third_part()
         {
-            color_this("darkgreen") wall_part(height = model.height3 + math.epsilon, bottom_width = model.width3,
-                                              top_width = model.width2) children();
+            profile_part(height = model.height3 + math.epsilon, bottom_width = model.width3, top_width = model.width2)
+                children();
+        }
+
+        module profile_part(height, bottom_width, top_width)
+        {
+            if (height > 0 && bottom_width > 0 && top_width > 0)
+            {
+                rect_tube(h = height, size = standard.length, isize1 = standard.length - bottom_width,
+                          isize2 = standard.length - top_width, rounding = standard.outer_rounding, anchor = TOP)
+                    children();
+            }
+            else
+            {
+                children();
+            }
         }
     }
 
     module main(model = model)
     {
-        diff("hole profile") solid()
+        grid_copies(spacing = standard.length, n = [ input.units.x, input.units.y ]) diff("hole profile") solid()
         {
-            attach(TOP, BOT) color_this([ 0.9, 0.2, 0.3, 1 ]) tag("hole") hole_distributor() hole();
+            attach(TOP, BOT) tag("hole") hole_distributor() hole();
             position(TOP) tag("profile") profile(model);
         }
 
@@ -163,15 +187,14 @@ module bottom()
 
     module first_part()
     {
-        color_this("lightgreen")
-            rect_tube(h = bottom.height1, size = standard.length, isize1 = standard.length - 2 * bin.wall_thickness,
-                      isize2 = standard.length - 2 * bin.wall_thickness, rounding = standard.outer_rounding) children();
+        wall_part(height = bottom.height1, bottom_width = bin.wall_thickness, top_width = bin.wall_thickness)
+            children();
     }
 
     module second_part()
     {
-        color_this("#123") cuboid(size = [ standard.length, standard.length, bottom.height2 ],
-                                  rounding = standard.outer_rounding, edges = "Z") children();
+        cuboid(size = [ x_length(), y_length(), bottom.height2 ], rounding = standard.outer_rounding, edges = "Z")
+            children();
     }
 }
 
@@ -181,93 +204,99 @@ module middle()
 
     module first_part()
     {
-        color_this("grey")
-            rect_tube(h = bin.height_unit, size = standard.length, isize1 = standard.length - 2 * bin.wall_thickness,
-                      isize2 = standard.length - 2 * bin.wall_thickness, rounding = standard.outer_rounding) children();
+        wall_part(height = bin.height_unit, bottom_width = bin.wall_thickness, top_width = bin.wall_thickness)
+            children();
     }
 }
 
 module upper(model, label)
 {
-    !first_part() *attach(BOT, TOP) second_part() attach(BOT, TOP) third_part() * children();
-
-    module first_part()
+    if (is_def(label))
     {
-        height = is_def(label) ? label.label.z + label.holder.z : model.height1;
-        diff("hole")
-        {
-            color_this("blue") wall_part(height = height, bottom_width = model.width1, top_width = model.width0)
-            {
-                position(BOT) label(label);
-                position(RIGHT+BOT) color_this("pink") tag("hole") up(label.label.z) wall_hole();
-                children();
-            }
-        }
+        upper_with_label() children();
+    }
+    else
+    {
+        upper_without_label() children();
+    }
 
-        module wall_hole()
-        {
-            #cube(size =
-                     [
-                         upper.width1 + math.epsilon,
-                         label.cover.y + label.clearance.y,
-                         label.cover.z + label.clearance.z
-                     ],
-                 anchor = RIGHT + BOT);
-        }
-
-        module label(model)
-        {
-            diff("cover_hole")
-            {
-                cuboid(size = model.label, anchor = BOT)
-                {
-                    position(TOP) holders();
-                    position(FRONT) tag("cover_hole")
-                        cuboid(size = [ model.hole.x, model.hole.y, model.label.z + 3 * math.epsilon ], anchor = FRONT);
-                }
-            }
+    module upper_with_label()
+    {
+        label_height = label.label.z + label.cover.z + label.clearance.z + label.holder.z;
+        first_part() attach(BOT, TOP) second_part() attach(BOT, TOP) third_part()
             children();
 
-            module holders()
+        module first_part()
+        {
+            label_y_length = y_length() - 2 * model.width0;
+            diff("wall_hole")
+            wall_part(height = label_height, bottom_width = model.width1, top_width = model.width0)
             {
-                xcopies(l = model.label.x, n = 2) holder(left = ($idx == 0));
+                position(LEFT + TOP) right(model.width0) single_holder(LEFT);
+                position(RIGHT + TOP) left(model.width0) single_holder(RIGHT);
+                position(BOT) label();
+                position(RIGHT + TOP) down(label.holder.z) right(math.epsilon) tag("wall_hole") wall_hole();
+                children();
             }
 
-            module holder(left)
+            module label(){
+                diff("label_hole")
+                cuboid(size  = [x_length() - 2 * model.width0, label_y_length, label.label.z]) position(FRONT)
+                tag("label_hole") cuboid(size = [x_length() - 2 * model.width0 - 2 * label.holder.x, label.hole.y, label.label.z + math.epsilon], anchor = FWD);
+            }
+
+            module wall_hole()
             {
-                single_holder((left ? RIGHT : LEFT));
+                cube(size = [ upper.width1, label.cover.y, label.cover.z ] + label.clearance, anchor = RIGHT + TOP);
             }
 
             module single_holder(pos)
             {
-                up(label.cover.z + label.clearance.z) cuboid(size = model.holder, anchor = TOP + -1 * pos )
+                cuboid(size = [ label.holder.x, label_y_length, label.holder.z ], anchor = TOP + pos)
+                position(BOT - pos) support();
+
+                module support()
                 {
-                    *position(pos + BOT) up(printer.support.z_offset) cuboid(
+                    down(printer.support.offset.z) cuboid(
                         [
-                            printer.support.line_width, model.holder.y - 2 * printer.support.xy_offset,
-                            model.cover.z + model.clearance.z - 2 * printer.support.z_offset
+                            printer.support.line_width, label_y_length - 2 * printer.support.offset.y,
+                            label.cover.z + label.clearance.z - 2 * printer.support.offset.z
                         ],
-                        anchor = pos + BOT);
+                        anchor = TOP - pos);
                 }
             }
+        }
 
-            module cover()
-            {
-                cuboid(model.cover);
-            }
+        module second_part()
+        {
+            wall_part(height = model.height2, bottom_width = model.width2, top_width = model.width1) children();
+        }
+
+        module third_part()
+        {
+            height = bin.height_unit - label_height;
+            wall_part(height = model.height3, bottom_width = model.width3, top_width = model.width2) children();
         }
     }
 
-    module second_part()
+    module upper_without_label()
     {
-        color_this("green") wall_part(height = model.height2, bottom_width = model.width2, top_width = model.width1)
-            children();
-    }
+        first_part() attach(BOT, TOP) second_part() attach(BOT, TOP) third_part() children();
 
-    module third_part()
-    {
-        color_this("red") wall_part(height = model.height3, bottom_width = model.width3, top_width = model.width2)
-            children();
+        module first_part()
+        {
+            wall_part(height = model.height1, bottom_width = model.width1, top_width = model.width0) children();
+        }
+
+        module second_part()
+        {
+            wall_part(height = model.height2, bottom_width = model.width2, top_width = model.width1) children();
+        }
+
+        module third_part()
+        {
+            wall_part(height = model.height3, bottom_width = model.width3, top_width = model.width2) children();
+        }
     }
 }
 
@@ -277,7 +306,8 @@ module lip(model)
 
     module first_part()
     {
-        path = rect(size = standard.length - 2 * model.width1, rounding = standard.outer_rounding - model.width1);
+        path = rect(size = [ x_length() - 2 * model.width1, y_length() - 2 * model.width1 ],
+                    rounding = standard.outer_rounding - model.width1);
         shape = safe_rounded_triangle_path(width = model.width1, height = model.height1,
                                            radius = model.upper_rounding_radius);
         if (is_path(shape) == true)
@@ -296,14 +326,12 @@ module lip(model)
 
     module second_part()
     {
-        color_this("red") wall_part(height = model.height2, bottom_width = model.height2, top_width = model.height1)
-            children();
+        wall_part(height = model.height2, bottom_width = model.height2, top_width = model.height1) children();
     }
 
     module third_part()
     {
-        color_this("firebrick") wall_part(height = model.height3, bottom_width = model.width3, top_width = model.width2)
-            children();
+        wall_part(height = model.height3, bottom_width = model.width3, top_width = model.width2) children();
     }
 }
 
@@ -311,9 +339,10 @@ module wall_part(height, bottom_width, top_width)
 {
     if (height > 0 && bottom_width > 0 && top_width > 0)
     {
-        rect_tube(h = height, size = standard.length, isize1 = standard.length - 2 * bottom_width,
-                  isize2 = standard.length - 2 * top_width, rounding = standard.outer_rounding, anchor = TOP)
-            children();
+        rect_tube(h = height, size = [ x_length(), y_length() ],
+                  isize1 = [ x_length() - 2 * bottom_width, y_length() - 2 * bottom_width ],
+                  isize2 = [ x_length() - 2 * top_width, y_length() - 2 * top_width ],
+                  rounding = standard.outer_rounding, anchor = TOP) children();
     }
     else
     {
@@ -333,4 +362,9 @@ function rounded_triangle_path(width, height,
 module fake_attachable()
 {
     % cube(math.epsilon);
+}
+
+module datum_plane()
+{
+    cube(math.epsilon) children();
 }
