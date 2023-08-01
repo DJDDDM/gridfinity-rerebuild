@@ -130,8 +130,8 @@ module block(model)
         {
             if (height > 0 && bottom_width > 0 && top_width > 0)
             {
-                rect_tube(h = height, size = standard.length, isize1 = standard.length - bottom_width,
-                          isize2 = standard.length - top_width, rounding = standard.outer_rounding, anchor = TOP)
+                rect_tube(h = height, size = standard.length, isize1 = standard.length - 2 * bottom_width,
+                          isize2 = standard.length - 2 * top_width, rounding = standard.outer_rounding, anchor = TOP)
                     children();
             }
             else
