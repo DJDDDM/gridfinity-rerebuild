@@ -37,7 +37,7 @@ closeable_label = import("../model/gridfinity_alternatives/closeable/label.json"
 
 // helpers
 math = import(math_constants_path);
-printer = import("../model/printer/fine.json");
+printer = import("../model/printer/gridfinity.json");
 
 // changeables
 input = import(input_path);
@@ -48,9 +48,11 @@ function x_length() = standard.length * input.units.x;
 function y_length() = standard.length * input.units.y;
 function total_height() = standard.length * input.units.z + bin.lip_height;
 
-//gridfinity_bin();
+gridfinity_bin();
 
-upper(upper, closeable_label);
+//block(block);
+
+//upper(upper, closeable_label);
 
 module gridfinity_bin()
 {
@@ -59,8 +61,8 @@ module gridfinity_bin()
         datum_plane() attach(BOT, TOP) lip(lip) attach(BOT, TOP) upper(upper, closeable_label) attach(BOT, TOP) middle()
             attach(BOT, TOP) bottom()
         {
-            front(model = front);
-            block(model = block);
+            front(front);
+            block(block);
         }
 
         clearance();
@@ -100,29 +102,27 @@ module clearance()
 
 module block(model)
 {
-    main(model = model);
+    main(model);
 
     module profile(model = model)
     {
-        down(model.height0) first_part();
-        down(model.height0 + model.height1) second_part();
-        down(model.height0 + model.height1 + model.height2) third_part();
+        down(model.height0) first_part() attach(BOT,TOP,math.epsilon) second_part() attach(BOT,TOP,math.epsilon) third_part();
 
         module first_part()
         {
-            profile_part(height = model.height1 + math.epsilon, bottom_width = model.width1,
+            profile_part(height = model.height1, bottom_width = model.width1,
                          top_width = model.width0 + math.epsilon) children();
         }
 
         module second_part()
         {
-            profile_part(height = model.height2 + math.epsilon, bottom_width = model.width2, top_width = model.width1)
+            profile_part(height = model.height2, bottom_width = model.width2, top_width = model.width1)
                 children();
         }
 
         module third_part()
         {
-            profile_part(height = model.height3 + math.epsilon, bottom_width = model.width3, top_width = model.width2)
+            profile_part(height = model.height3, bottom_width = model.width3, top_width = model.width2)
                 children();
         }
 
@@ -141,7 +141,7 @@ module block(model)
         }
     }
 
-    module main(model = model)
+    module main(model)
     {
         grid_copies(spacing = standard.length, n = [ input.units.x, input.units.y ]) diff("hole profile") solid()
         {
@@ -223,43 +223,80 @@ module upper(model, label)
     module upper_with_label()
     {
         label_height = label.label.z + label.cover.z + label.clearance.z + label.holder.z;
-        first_part() attach(BOT, TOP) second_part() attach(BOT, TOP) third_part()
-            children();
+        first_part() attach(BOT, TOP) second_part() attach(BOT, TOP) third_part() children();
 
         module first_part()
         {
             label_y_length = y_length() - 2 * model.width0;
-            diff("wall_hole")
-            wall_part(height = label_height, bottom_width = model.width1, top_width = model.width0)
+            diff("wall_hole") wall_part(height = label_height, bottom_width = model.width1, top_width = model.width0)
             {
                 position(LEFT + TOP) right(model.width0) single_holder(LEFT);
                 position(RIGHT + TOP) left(model.width0) single_holder(RIGHT);
                 position(BOT) label();
-                position(RIGHT + TOP) down(label.holder.z) right(math.epsilon) tag("wall_hole") wall_hole();
+                position(RIGHT + TOP + BACK) down(label.holder.z) fwd(model.width0) tag("wall_hole") wall_hole();
                 children();
             }
 
-            module label(){
-                diff("label_hole")
-                cuboid(size  = [x_length() - 2 * model.width0, label_y_length, label.label.z]) position(FRONT)
-                tag("label_hole") cuboid(size = [x_length() - 2 * model.width0 - 2 * label.holder.x, label.hole.y, label.label.z + math.epsilon], anchor = FWD);
+            module label()
+            {
+                hole_x = x_length() - 2 * model.width0 - 2 * label.holder.x;
+                diff(remove = "hole indent", keep = "string") label_plane()
+                {
+                    position(FRONT) tag("hole") label_hole();
+                    position(BOT + FRONT) tag("indent") label_indent();
+                    position(BOT + FRONT) tag("string") label_string();
+                }
+
+                module label_plane()
+                {
+                    cuboid(size = [ x_length(), y_length(), label.label.z ], rounding = standard.outer_rounding,
+                           edges = "Z", anchor = BOT) children();
+                }
+
+                module label_indent()
+                {
+
+                    cuboid(size = [ hole_x, y_length(), 2 * printer.layer_height ], anchor = BOT + FWD);
+                }
+
+                module label_hole()
+                {
+                    back(model.width0)
+                        cuboid(size = [ hole_x, label.hole.y, label.label.z + math.epsilon ], anchor = FWD);
+                }
+
+                module label_string()
+                {
+                    cuboid(size = [ 2 * printer.line_width, y_length(), 2 * printer.layer_height ], anchor = BOT + FWD);
+                }
             }
 
             module wall_hole()
             {
-                cube(size = [ upper.width1, label.cover.y, label.cover.z ] + label.clearance, anchor = RIGHT + TOP);
+                cube(size = [ upper.width1, label.cover.y, label.cover.z ] + label.clearance,
+                     anchor = RIGHT + TOP + BACK);
             }
 
             module single_holder(pos)
             {
                 cuboid(size = [ label.holder.x, label_y_length, label.holder.z ], anchor = TOP + pos)
-                position(BOT - pos) support();
+                {
+                    position(BOT - pos) support();
+                    position(BOT + pos) spacer();
+                }
+
+                module spacer()
+                {
+                    spacer_x_length = (x_length() - 2 * model.width0 - label.cover.x - label.clearance.x) / 2;
+                    spacer_height = label.cover.z + label.clearance.z;
+                    cuboid(size = [ spacer_x_length, label_y_length, spacer_height ], anchor = TOP + pos);
+                }
 
                 module support()
                 {
                     down(printer.support.offset.z) cuboid(
                         [
-                            printer.support.line_width, label_y_length - 2 * printer.support.offset.y,
+                            printer.support.line_width, label_y_length - 3 * printer.support.offset.y,
                             label.cover.z + label.clearance.z - 2 * printer.support.offset.z
                         ],
                         anchor = TOP - pos);
