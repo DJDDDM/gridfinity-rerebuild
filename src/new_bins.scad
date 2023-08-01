@@ -106,7 +106,7 @@ module block(model)
 
     module profile(model = model)
     {
-        down(model.height0) first_part() attach(BOT,TOP,math.epsilon) second_part() attach(BOT,TOP,math.epsilon) third_part();
+        down(model.height0 + 2 * math.epsilon) first_part() attach(BOT,TOP,math.epsilon) second_part() attach(BOT,TOP,math.epsilon) third_part();
 
         module first_part()
         {
