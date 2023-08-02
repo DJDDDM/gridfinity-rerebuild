@@ -50,9 +50,9 @@ function total_height() = standard.length * input.units.z + bin.lip_height;
 
 gridfinity_bin();
 
-//block(block);
+// block(block);
 
-//upper(upper, closeable_label);
+// upper(upper, closeable_label);
 
 module gridfinity_bin()
 {
@@ -106,24 +106,23 @@ module block(model)
 
     module profile(model = model)
     {
-        down(model.height0 + 2 * math.epsilon) first_part() attach(BOT,TOP,math.epsilon) second_part() attach(BOT,TOP,math.epsilon) third_part();
+        down(2 * math.epsilon) first_part() attach(BOT, TOP, math.epsilon) second_part() attach(BOT, TOP, math.epsilon)
+            third_part();
 
         module first_part()
         {
-            profile_part(height = model.height1, bottom_width = model.width1,
-                         top_width = model.width0 + math.epsilon) children();
+            profile_part(height = model.height1, bottom_width = model.width1, top_width = model.width0 + math.epsilon)
+                children();
         }
 
         module second_part()
         {
-            profile_part(height = model.height2, bottom_width = model.width2, top_width = model.width1)
-                children();
+            profile_part(height = model.height2, bottom_width = model.width2, top_width = model.width1) children();
         }
 
         module third_part()
         {
-            profile_part(height = model.height3, bottom_width = model.width3, top_width = model.width2)
-                children();
+            profile_part(height = model.height3, bottom_width = model.width3, top_width = model.width2) children();
         }
 
         module profile_part(height, bottom_width, top_width)
@@ -143,15 +142,22 @@ module block(model)
 
     module main(model)
     {
-        grid_copies(spacing = standard.length, n = [ input.units.x, input.units.y ]) diff("hole profile") solid()
+        diff("hole profile") top() attach(BOT, TOP)
+            grid_copies(spacing = standard.length, n = [ input.units.x, input.units.y ]) center()
         {
             attach(TOP, BOT) tag("hole") hole_distributor() hole();
             position(TOP) tag("profile") profile(model);
         }
 
-        module solid()
+        module top()
         {
-            cuboid(size = [ standard.length - math.epsilon, standard.length - math.epsilon, bin.height_unit ],
+            cuboid(size = [ x_length(), y_length(), model.height0 ], rounding = standard.outer_rounding, edges = "Z",
+                   anchor = TOP) children();
+        }
+
+        module center()
+        {
+            cuboid(size = [ standard.length, standard.length, model.height1 + model.height2 + model.height3 ],
                    rounding = standard.outer_rounding, edges = "Z", anchor = TOP) children();
         }
 
