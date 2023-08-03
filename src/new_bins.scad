@@ -54,8 +54,8 @@ module gridfinity_bin()
 {
     difference()
     {
-        datum_plane() position(BOT) lip(lip) position(BOT) upper(upper, closeable_label) position(BOT) middle()
-            position(BOT) bottom()
+        datum_plane() position(BOT) lip(lip) position(BOT) upper(upper, closeable_label) position(BOT)
+            color_this("blue") middle() position(BOT) bottom()
         {
             position(FWD + BOT) front(front);
             position(BOT) block(block);
@@ -94,7 +94,7 @@ module clearance()
 
 module block(model)
 {
-    //TODO: use 3 solids instead of solid - 3 profiles
+    // TODO: use 3 solids instead of solid - 3 profiles
     main(model);
 
     module profile(model = model)
@@ -199,23 +199,12 @@ module bottom()
 
 module middle()
 {
-    if (input.units.z > 3)
-    {
-        first_part() children();
-    }
-    else
-    {
-        attachable(orient = DOWN)
-        {
-            fake_attachable();
-            children();
-        }
-    }
+    first_part() children();
 
     module first_part()
     {
-        height = bin.height_unit * (input.units.z - 3);
-        wall_part(height = height, bottom_width = bin.wall_thickness, top_width = bin.wall_thickness) children();
+        wall_part(height = bin.height_unit * (input.units.z - 3), bottom_width = bin.wall_thickness,
+                  top_width = bin.wall_thickness) children();
     }
 }
 
@@ -233,7 +222,7 @@ module upper(model, label)
     module upper_with_label()
     {
         label_height = label.label.z + label.cover.z + label.clearance.z + label.holder.z;
-        first_part() attach(BOT, TOP) second_part() attach(BOT, TOP) third_part() children();
+        first_part() position(BOT) second_part() position(BOT) third_part() children();
 
         module first_part()
         {
@@ -350,7 +339,7 @@ module upper(model, label)
 
 module lip(model)
 {
-    first_part() attach(BOT, TOP) second_part() attach(BOT, TOP) third_part() children();
+    first_part() position(TOP) second_part() position(BOT) third_part() children();
 
     module first_part()
     {
@@ -358,9 +347,13 @@ module lip(model)
                     rounding = standard.outer_rounding - model.width1);
         shape = safe_rounded_triangle_path(width = model.width1, height = model.height1,
                                            radius = model.upper_rounding_radius);
-        if (is_path(shape) == true)
+        // the height of the rounded shape is to low, so we need to scale it back to its original size
+        scaling_factor = model.height1 / last(shape).y;
+        corrected_shape = scale([ 1, scaling_factor, 1 ], p = shape);
+
+        if (is_path(corrected_shape) == true)
         {
-            path_sweep(shape = shape, path = path, closed = true, anchor = TOP) children();
+            path_sweep(shape = corrected_shape, path = path, closed = true, anchor = TOP) children();
         }
         else
         {
@@ -374,7 +367,9 @@ module lip(model)
 
     module second_part()
     {
-        wall_part(height = model.height2, bottom_width = model.height2, top_width = model.height1) children();
+        // ugly hack from rounding problems of first_part
+        down(model.height1) wall_part(height = model.height2, bottom_width = model.height2, top_width = model.height1)
+            children();
     }
 
     module third_part()
@@ -394,7 +389,11 @@ module wall_part(height, bottom_width, top_width)
     }
     else
     {
-        children();
+        attachable()
+        {
+            fake_attachable();
+            children();
+        }
     }
 }
 
@@ -405,7 +404,7 @@ function safe_rounded_triangle_path(width, height, radius) = (width > 0 && heigh
 
 function rounded_triangle_path(width, height,
                                radius) = let(straight_tip = [ [ 0, 0 ], [ width, 0 ], [ width, height ] ])
-    round_corners(straight_tip, radius = [ 0, 0, radius ]);
+    round_corners(straight_tip, radius = [ 0, 0, radius * 1 ]);
 
 module fake_attachable()
 {
