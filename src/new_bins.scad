@@ -1,7 +1,7 @@
 include <BOSL2/rounding.scad>
 include <BOSL2/std.scad>
 
-$fn = 30;
+$fn = $preview ? 30 : 30;
 
 // gridfinity standard
 general_standard_path = "../model/gridfinity_standard/general.json";
@@ -50,19 +50,15 @@ function total_height() = standard.length * input.units.z + bin.lip_height;
 
 gridfinity_bin();
 
-// block(block);
-
-// upper(upper, closeable_label);
-
 module gridfinity_bin()
 {
     difference()
     {
-        datum_plane() attach(BOT, TOP) lip(lip) attach(BOT, TOP) upper(upper, closeable_label) attach(BOT, TOP) middle()
-            attach(BOT, TOP) bottom()
+        datum_plane() position(BOT) lip(lip) position(BOT) upper(upper, closeable_label) position(BOT) middle()
+            position(BOT) bottom()
         {
-            front(front);
-            block(block);
+            position(FWD + BOT) front(front);
+            position(BOT) block(block);
         }
 
         clearance();
@@ -71,27 +67,23 @@ module gridfinity_bin()
 
 module front(model)
 {
-    offset_to_grid = (y_length() - standard.length) / 2;
-    offset_to_outer_backwall = bin.wall_thickness + model.spacer_distance;
-    back(offset_to_outer_backwall - offset_to_grid) up(model.slope_offset) slope();
+    slope_height = bin.height_unit * (input.units.z - 1);
+    slope_radius = min(slope_height, model.slope_radius);
+    front_length = x_length() - 2 * bin.wall_thickness;
+
+    back(bin.wall_thickness) wall() attach(BACK, FRONT) slope();
+
+    module wall()
+    {
+        cuboid(size = [ front_length, model.spacer_distance, slope_height ], anchor = BOT + FWD) children();
+    }
 
     module slope()
     {
-        front_length = x_length() - 2 * bin.wall_thickness;
-        difference()
-        {
-            union()
-            {
-                cuboid(size = [ front_length, model.slope_radius, model.slope_radius ],
-                       anchor = BOT + BACK) attach(FRONT, BACK) fwd(model.slope_offset)
-                    cuboid(size = [ front_length, model.spacer_distance, height_for_units(units = input.units.z - 1) ]);
-            }
-            cylinder(h = front_length, r = model.slope_radius, spin = 180, orient = LEFT, anchor = CENTER + RIGHT);
-        }
+        diff() cuboid(size = [ front_length, slope_radius, slope_radius ]) position(BOT + BACK) tag("remove")
+            xcyl(h = front_length, r = slope_radius, anchor = BOT);
     }
 }
-
-function height_for_units(units) = bin.height_unit * units;
 
 module clearance()
 {
@@ -102,6 +94,7 @@ module clearance()
 
 module block(model)
 {
+    //TODO: use 3 solids instead of solid - 3 profiles
     main(model);
 
     module profile(model = model)
@@ -189,7 +182,7 @@ module block(model)
 
 module bottom()
 {
-    first_part() attach(BOT, TOP) second_part() children();
+    first_part() position(BOT) second_part() children();
 
     module first_part()
     {
@@ -206,12 +199,23 @@ module bottom()
 
 module middle()
 {
-    first_part() children();
+    if (input.units.z > 3)
+    {
+        first_part() children();
+    }
+    else
+    {
+        attachable(orient = DOWN)
+        {
+            fake_attachable();
+            children();
+        }
+    }
 
     module first_part()
     {
-        wall_part(height = bin.height_unit, bottom_width = bin.wall_thickness, top_width = bin.wall_thickness)
-            children();
+        height = bin.height_unit * (input.units.z - 3);
+        wall_part(height = height, bottom_width = bin.wall_thickness, top_width = bin.wall_thickness) children();
     }
 }
 
@@ -312,13 +316,14 @@ module upper(model, label)
 
         module second_part()
         {
-            wall_part(height = model.height2, bottom_width = model.width2, top_width = model.width1) children();
+            height = min(model.height2, bin.height_unit - label_height);
+            wall_part(height = height, bottom_width = model.width2, top_width = model.width1) children();
         }
 
         module third_part()
         {
-            height = bin.height_unit - label_height;
-            wall_part(height = model.height3, bottom_width = model.width3, top_width = model.width2) children();
+            height = min(model.height3, bin.height_unit - label_height - model.height2);
+            wall_part(height = height, bottom_width = model.width3, top_width = model.width2) children();
         }
     }
 
