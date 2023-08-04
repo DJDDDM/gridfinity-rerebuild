@@ -35,18 +35,21 @@ lipless_upper = import("../model/gridfinity_alternatives/lipless/upper.json");
 // label
 closeable_label = import("../model/gridfinity_alternatives/closeable/label.json");
 
+// flat
+flat_bottom = import("../model/gridfinity_alternatives/flat/bottom.json");
+flat_block = import("../model/gridfinity_alternatives/flat/block.json");
+
 // helpers
 math = import(math_constants_path);
 printer = import("../model/printer/gridfinity.json");
 
-// changeables
+// input
 input = import(input_path);
 
 function lip_height() = lip.height1 + lip.height2 + lip.height3;
-
 function x_length() = standard.length * input.units.x;
 function y_length() = standard.length * input.units.y;
-function total_height() = standard.length * input.units.z + bin.lip_height;
+function total_height() = standard.length * input.units.z + lip_height();
 
 gridfinity_bin();
 
@@ -54,11 +57,11 @@ module gridfinity_bin()
 {
     difference()
     {
-        datum_plane() position(BOT) lip(lip) position(BOT) upper(upper, closeable_label) position(BOT)
-            color_this("blue") middle() position(BOT) bottom()
+        datum_plane() position(BOT) lip(lip) position(BOT) upper(upper, closeable_label) position(BOT) middle()
+            position(BOT) bottom(flat_bottom)
         {
             position(FWD + BOT) front(front);
-            position(BOT) block(block);
+            position(BOT) render() block(flat_block);
         }
 
         clearance();
@@ -94,79 +97,58 @@ module clearance()
 
 module block(model)
 {
-    // TODO: use 3 solids instead of solid - 3 profiles
-    main(model);
+    diff("hole") top() position(BOT) grid_copies(spacing = standard.length, n = [ input.units.x, input.units.y ])
+        center() position(BOT) tag("hole") grid_copies(spacing = 26, size = [ standard.length, standard.length ])
+            hole();
 
-    module profile(model = model)
+    module top()
     {
-        down(2 * math.epsilon) first_part() attach(BOT, TOP, math.epsilon) second_part() attach(BOT, TOP, math.epsilon)
-            third_part();
+        if (is_undef(model.type))
+            standard_top() children();
+        else if (model.type == "standard")
+            standard_top() children();
+        else if (model.type == "flat")
+            flat_top() children();
 
-        module first_part()
-        {
-            profile_part(height = model.height1, bottom_width = model.width1, top_width = model.width0 + math.epsilon)
-                children();
-        }
-
-        module second_part()
-        {
-            profile_part(height = model.height2, bottom_width = model.width2, top_width = model.width1) children();
-        }
-
-        module third_part()
-        {
-            profile_part(height = model.height3, bottom_width = model.width3, top_width = model.width2) children();
-        }
-
-        module profile_part(height, bottom_width, top_width)
-        {
-            if (height > 0 && bottom_width > 0 && top_width > 0)
-            {
-                rect_tube(h = height, size = standard.length, isize1 = standard.length - 2 * bottom_width,
-                          isize2 = standard.length - 2 * top_width, rounding = standard.outer_rounding, anchor = TOP)
-                    children();
-            }
-            else
-            {
-                children();
-            }
-        }
-    }
-
-    module main(model)
-    {
-        diff("hole profile") top() attach(BOT, TOP)
-            grid_copies(spacing = standard.length, n = [ input.units.x, input.units.y ]) center()
-        {
-            attach(TOP, BOT) tag("hole") hole_distributor() hole();
-            position(TOP) tag("profile") profile(model);
-        }
-
-        module top()
+        module standard_top()
         {
             cuboid(size = [ x_length(), y_length(), model.height0 ], rounding = standard.outer_rounding, edges = "Z",
                    anchor = TOP) children();
         }
 
-        module center()
+        module flat_top()
         {
-            cuboid(size = [ standard.length, standard.length, model.height1 + model.height2 + model.height3 ],
-                   rounding = standard.outer_rounding, edges = "Z", anchor = TOP) children();
-        }
+            wall_part(height = model.height0 - printer.skin.height, bottom_width = bin.wall_thickness,
+                      top_width = bin.wall_thickness) skin() children();
 
-        module hole_distributor()
-        {
-            down(bin.height_unit) grid_copies(spacing = 26, size = [ standard.length, standard.length ]) children();
-        }
-
-        module hole()
-        {
-            union()
+            module skin()
             {
-                screw_hole();
-                magnet_hole();
+                cuboid(size = [ x_length(), y_length(), printer.skin.height ], rounding = standard.outer_rounding,
+                       edges = "Z", anchor = TOP) children();
             }
         }
+    }
+
+    module center()
+    {
+        center_part(height = model.height1, top_width = model.width0, bottom_width = model.width1) position(BOT)
+            center_part(height = model.height2, top_width = model.width1, bottom_width = model.width2) position(BOT)
+                center_part(height = model.height3, top_width = model.width2, bottom_width = model.width3) children();
+
+        module center_part(height, bottom_width, top_width)
+        {
+            full = [ standard.length, standard.length ];
+            rounding = standard.outer_rounding;
+            prismoid(h = height, size1 = full - [ bottom_width, bottom_width ], rounding1 = rounding - bottom_width,
+                     size2 = full - [ top_width, top_width ], rounding2 = rounding - top_width, anchor = TOP)
+                children();
+        }
+    }
+
+    module hole()
+    {
+        screw_hole();
+        magnet_hole();
 
         module screw_hole()
         {
@@ -180,20 +162,37 @@ module block(model)
     }
 }
 
-module bottom()
+module bottom(model)
 {
-    first_part() position(BOT) second_part() children();
+    if (is_undef(model.type))
+        standard_bottom() children();
+    else if (model.type == "standard")
+        standard_bottom() children();
+    else if (model.type == "flat")
+        flat_bottom() children();
 
-    module first_part()
-    {
-        wall_part(height = bottom.height1, bottom_width = bin.wall_thickness, top_width = bin.wall_thickness)
-            children();
+    module flat_bottom(){
+        height = (input.units.z >= 3) ? bin.height_unit : 0;
+        wall_part(height = height, bottom_width = bin.wall_thickness,
+                  top_width = bin.wall_thickness) children();
     }
 
-    module second_part()
+
+    module standard_bottom()
     {
-        cuboid(size = [ x_length(), y_length(), bottom.height2 ], rounding = standard.outer_rounding, edges = "Z")
-            children();
+        first_part() position(BOT) second_part() children();
+
+        module first_part()
+        {
+            wall_part(height = model.height1, bottom_width = bin.wall_thickness, top_width = bin.wall_thickness)
+                children();
+        }
+
+        module second_part()
+        {
+            cuboid(size = [ x_length(), y_length(), model.height2 ],
+                                       rounding = standard.outer_rounding, edges = "Z") children();
+        }
     }
 }
 
