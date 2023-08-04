@@ -49,9 +49,11 @@ input = import(input_path);
 function lip_height() = lip.height1 + lip.height2 + lip.height3;
 function x_length() = standard.length * input.units.x;
 function y_length() = standard.length * input.units.y;
-function total_height() = standard.length * input.units.z + lip_height();
+function total_height() = (bin.height_unit * input.units.z) + lip_height();
 
 gridfinity_bin();
+
+//bottom(flat_bottom) position(BOT) block(flat_block);
 
 module gridfinity_bin()
 {
@@ -61,7 +63,7 @@ module gridfinity_bin()
             position(BOT) bottom(flat_bottom)
         {
             position(FWD + BOT) front(front);
-            position(BOT) render() block(flat_block);
+            position(BOT) block(flat_block);
         }
 
         clearance();
@@ -90,15 +92,16 @@ module front(model)
 
 module clearance()
 {
-    up(bin.lip_height)
-        rect_tube(h = total_height(), size = [ x_length() + 2 * math.epsilon, y_length() + 2 * math.epsilon ],
-                  wall = standard.clearance, rounding = standard.outer_rounding, anchor = TOP);
+    rect_tube(h = total_height(), size = [ x_length() + 2 * math.epsilon, y_length() + 2 * math.epsilon ],
+              wall = standard.clearance, rounding = standard.outer_rounding, anchor = TOP);
 }
 
 module block(model)
 {
-    diff("hole") top() position(BOT) grid_copies(spacing = standard.length, n = [ input.units.x, input.units.y ])
-        center() position(BOT) tag("hole") grid_copies(spacing = 26, size = [ standard.length, standard.length ])
+    diff("hole") top()
+    position(BOT) grid_copies(spacing = standard.length, n = [ input.units.x, input.units.y ])
+        center()
+        position(BOT) tag("hole") grid_copies(spacing = 26, size = [ standard.length, standard.length ])
             hole();
 
     module top()
@@ -118,8 +121,10 @@ module block(model)
 
         module flat_top()
         {
-            wall_part(height = model.height0 - printer.skin.height, bottom_width = bin.wall_thickness,
-                      top_width = bin.wall_thickness) skin() children();
+            height = model.height0 - printer.skin.height;
+            echo(height);
+            wall_part(height = height, bottom_width = bin.wall_thickness, top_width = bin.wall_thickness) position(BOT)
+                skin() children();
 
             module skin()
             {
@@ -147,7 +152,7 @@ module block(model)
 
     module hole()
     {
-        screw_hole();
+        //screw_hole();
         magnet_hole();
 
         module screw_hole()
@@ -171,12 +176,12 @@ module bottom(model)
     else if (model.type == "flat")
         flat_bottom() children();
 
-    module flat_bottom(){
+    module flat_bottom()
+    {
         height = (input.units.z >= 3) ? bin.height_unit : 0;
-        wall_part(height = height, bottom_width = bin.wall_thickness,
-                  top_width = bin.wall_thickness) children();
+        echo(height);
+        wall_part(height = height, bottom_width = bin.wall_thickness, top_width = bin.wall_thickness) children();
     }
-
 
     module standard_bottom()
     {
@@ -190,21 +195,16 @@ module bottom(model)
 
         module second_part()
         {
-            cuboid(size = [ x_length(), y_length(), model.height2 ],
-                                       rounding = standard.outer_rounding, edges = "Z") children();
+            cuboid(size = [ x_length(), y_length(), model.height2 ], rounding = standard.outer_rounding, edges = "Z")
+                children();
         }
     }
 }
 
 module middle()
 {
-    first_part() children();
-
-    module first_part()
-    {
-        wall_part(height = bin.height_unit * (input.units.z - 3), bottom_width = bin.wall_thickness,
-                  top_width = bin.wall_thickness) children();
-    }
+    wall_part(height = bin.height_unit * (input.units.z - 3), bottom_width = bin.wall_thickness,
+              top_width = bin.wall_thickness) children();
 }
 
 module upper(model, label)
