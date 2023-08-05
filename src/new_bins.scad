@@ -32,12 +32,15 @@ front = import(front_standard_path);
 lipless_lip = import("../model/gridfinity_alternatives/lipless/lip.json");
 lipless_upper = import("../model/gridfinity_alternatives/lipless/upper.json");
 
-// label
+// closeable
 closeable_label = import("../model/gridfinity_alternatives/closeable/label.json");
 
 // flat
 flat_bottom = import("../model/gridfinity_alternatives/flat/bottom.json");
 flat_block = import("../model/gridfinity_alternatives/flat/block.json");
+
+// hollow
+hollow_block = import("../model/gridfinity_alternatives/hollow/block.json");
 
 // helpers
 math = import(math_constants_path);
@@ -78,17 +81,17 @@ module gridfinity_bin()
     {
         // TODO: use absolute position instead of relative for performance reasons
         datum_plane() position(BOT) lip(lip) position(BOT) upper(upper, closeable_label) position(BOT) middle()
-            position(BOT) bottom(flat_bottom) position(BOT) block(flat_block);
+            position(BOT) bottom(flat_bottom) position(BOT) block(hollow_block);
 
         clearance();
     }
 }
 
-module front(model, additional_height = 0)
+module front(model, additional_height = 0, additional_length = 0)
 {
     slope_height = bin.height_unit * (input.units.z - 1) + additional_height;
     slope_radius = min(slope_height, model.slope_radius);
-    front_length = x_length() - 2 * bin.wall_thickness;
+    front_length = x_length() - 2 * bin.wall_thickness + additional_length;
 
     back(bin.wall_thickness) wall() position(BACK) slope();
 
@@ -112,93 +115,113 @@ module clearance()
 
 module block(model)
 {
-    diff("hole") top() position(BOT) grid_copies(spacing = standard.length, n = [ input.units.x, input.units.y ])
-        center() position(BOT) tag("hole") grid_copies(spacing = 26, size = [ standard.length, standard.length ])
-            hole();
+    if (is_undef(model.type))
+        standard_block() children();
+    else if (model.type == "standard")
+        standard_block() children();
+    else if (model.type == "flat")
+        standard_block() children();
+    else if (model.type == "hollow")
+        hollow_block() children();
 
-    module top()
+    module standard_block()
     {
-        if (is_undef(model.type))
-            standard_top() children();
-        else if (model.type == "standard")
-            standard_top() children();
-        else if (model.type == "flat")
-            flat_top() children();
 
-        module standard_top()
-        {
-            cuboid(size = [ x_length(), y_length(), model.height0 ], rounding = standard.outer_rounding, edges = "Z",
-                   anchor = TOP) children();
-        }
+        diff("hole") top() position(BOT) grid_copies(spacing = standard.length, n = [ input.units.x, input.units.y ])
+            center() position(BOT) tag("hole") grid_copies(spacing = 26, size = [ standard.length, standard.length ])
+                hole();
 
-        module flat_top()
+        module top()
         {
-            // tag is needed for z fighting
-            height = model.height0 - printer.skin.height;
-            wall_part(height = height, bottom_width = bin.wall_thickness, top_width = bin.wall_thickness) position(BOT)
-                tag("keep") skin()
+            if (is_undef(model.type))
+                standard_top() children();
+            else if (model.type == "standard")
+                standard_top() children();
+            else if (model.type == "flat")
+                flat_top() children();
+
+            module standard_top()
             {
-                position(BOT + FWD) front(front, additional_height = model.height0);
-                tag("") children();
+                cuboid(size = [ x_length(), y_length(), model.height0 ], rounding = standard.outer_rounding,
+                       edges = "Z", anchor = TOP) children();
             }
 
-            module skin()
+            module flat_top()
             {
-                tag("keep") cuboid(size = [ x_length(), y_length(), printer.skin.height ],
-                                   rounding = standard.outer_rounding, edges = "Z", anchor = TOP) tag("") children();
+                // tag is needed for z fighting
+                height = model.height0 - printer.skin.height;
+                wall_part(height = height, bottom_width = bin.wall_thickness, top_width = bin.wall_thickness)
+                    position(BOT) tag("keep") skin()
+                {
+                    position(BOT + FWD) front(front, additional_height = model.height0);
+                    tag("") children();
+                }
+
+                module skin()
+                {
+                    tag("keep") cuboid(size = [ x_length(), y_length(), printer.skin.height ],
+                                       rounding = standard.outer_rounding, edges = "Z", anchor = TOP) tag("")
+                        children();
+                }
             }
         }
-    }
 
-    module center()
-    {
-        if (is_undef(model.type))
-            standard_center() children();
-        else if (model.type == "hollow")
-            hollow_center() children();
-        else
-            standard_center() children();
-
-        module standard_center()
+        module center()
         {
+
             center_part(height = model.height1, top_width = model.width0, bottom_width = model.width1) position(BOT)
                 center_part(height = model.height2, top_width = model.width1, bottom_width = model.width2) position(BOT)
                     center_part(height = model.height3, top_width = model.width2, bottom_width = model.width3)
                         children();
-        }
 
-        module hollow_center()
-        {
-            module hollow_part(height, bottom_width, top_width)
+            module center_part(height, bottom_width, top_width)
             {
-                rect_tube(h = height, size1 = standard.length - 2 * bottom_width, rounding1 = standard.outer_rounding - bottom_width, size2 = standard.length - 2 * top_width,
-                          rounding2 = standard.outer_rounding - top_width, anchor = TOP) children();
+                full = [ standard.length, standard.length ];
+                rounding = standard.outer_rounding;
+                prismoid(h = height, size1 = full - 2 * [ bottom_width, bottom_width ],
+                         rounding1 = rounding - bottom_width, size2 = full - 2 * [ top_width, top_width ],
+                         rounding2 = rounding - top_width, anchor = TOP) children();
             }
         }
 
-        module center_part(height, bottom_width, top_width)
+        module hole()
         {
-            full = [ standard.length, standard.length ];
-            rounding = standard.outer_rounding;
-            prismoid(h = height, size1 = full - 2 * [ bottom_width, bottom_width ], rounding1 = rounding - bottom_width,
-                     size2 = full - 2 * [ top_width, top_width ], rounding2 = rounding - top_width, anchor = TOP)
-                children();
+            screw_hole();
+            magnet_hole();
+
+            module screw_hole()
+            {
+                zcyl(h = model.screw_depth, d = model.screw_diameter, anchor = BOT);
+            }
+
+            module magnet_hole()
+            {
+                zcyl(h = model.magnet_depth, d = model.magnet_diameter, anchor = BOT);
+            }
         }
     }
 
-    module hole()
+    module hollow_block()
     {
-        screw_hole();
-        magnet_hole();
+        hollow_part(height = model.height0, bottom_width = model.width0, top_width = model.width0);
+        down(model.height0) hollow_part(height = model.height1, bottom_width = model.width1, top_width = model.width0);
+        down(model.height0 + model.height1) hollow_part(height = model.height2, bottom_width = model.width2, top_width = model.width1);
+        down(model.height0 + model.height1 + model.height2) full_part(height = model.height3, bottom_width = model.width3, top_width = model.width2)
+        position(UP + FWD) front(front, additional_height = model.height0 + model.height1 + model.height2, additional_length = -2 * (model.width3 - bin.wall_thickness) );
 
-        module screw_hole()
+        module hollow_part(height, bottom_width, top_width)
         {
-            zcyl(h = model.screw_depth, d = model.screw_diameter, anchor = BOT);
+            rect_tube(h = height, size1 = [ x_length, y_length ] - 2 * [ bottom_width, bottom_width ],
+                      rounding1 = standard.outer_rounding - bottom_width,
+                      size2 = [ x_length, y_length ] - 2 * [ top_width, top_width ],
+                      rounding2 = standard.outer_rounding - top_width, wall = bin.wall_thickness, anchor = TOP)
+                children();
         }
 
-        module magnet_hole()
-        {
-            zcyl(h = model.magnet_depth, d = model.magnet_diameter, anchor = BOT);
+        module full_part(height, bottom_width, top_width){
+            prismoid(h = height, size1 = [x_length, y_length] - 2 * [ bottom_width, bottom_width ],
+                         rounding1 = standard.outer_rounding - bottom_width, size2 = [x_length, y_length] - 2 * [ top_width, top_width ],
+                         rounding2 = standard.outer_rounding - top_width, anchor = TOP) children();
         }
     }
 }
