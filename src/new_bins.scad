@@ -7,8 +7,6 @@ $fn = $preview ? 30 : 30;
 general_standard_path = "../model/gridfinity_standard/general.json";
 bin_standard_path = "../model/gridfinity_standard/bin.json";
 lip_standard_path = "../model/gridfinity_standard/lip.json";
-upper_standard_path = "../model/gridfinity_standard/upper.json";
-bottom_standard_path = "../model/gridfinity_standard/bottom.json";
 block_standard_path = "../model/gridfinity_standard/block.json";
 front_standard_path = "../model/gridfinity_standard/front.json";
 
@@ -21,11 +19,11 @@ input_path = "../model/gridfinity_input.json";
 // gridfinity standard
 standard = import(general_standard_path);
 bin = import(bin_standard_path);
-lip = import(lip_standard_path);
-upper = import(upper_standard_path);
-bottom = import(bottom_standard_path);
-block = import(block_standard_path);
-front = import(front_standard_path);
+standard_lip = import("../model/gridfinity_standard/lip.json");
+standard_upper = import("../model/gridfinity_standard/upper.json");
+standard_bottom = import("../model/gridfinity_standard/bottom.json");
+standard_block = import("../model/gridfinity_standard/block.json");
+standard_front = import("../model/gridfinity_standard/front.json");
 
 // alternatives
 // lipless
@@ -48,6 +46,13 @@ printer = import("../model/printer/gridfinity.json");
 
 // input
 input = import(input_path);
+
+lip = standard_lip;
+label = closeable_label;
+upper = standard_upper;
+bottom = flat_bottom;
+front = standard_front;
+block = hollow_block;
 
 // TODO: use variables instead of 0 parameter functions for performance
 function lip_height() = lip.height1 + lip.height2 + lip.height3;
@@ -80,8 +85,8 @@ module gridfinity_bin()
     difference()
     {
         // TODO: use absolute position instead of relative for performance reasons
-        datum_plane() position(BOT) lip(lip) position(BOT) upper(upper, closeable_label) position(BOT) middle()
-            position(BOT) bottom(flat_bottom) position(BOT) block(hollow_block);
+        datum_plane() position(BOT) lip(lip) position(BOT) upper(upper, label) position(BOT) middle() position(BOT)
+            bottom(bottom) position(BOT) block(block);
 
         clearance();
     }
@@ -90,20 +95,25 @@ module gridfinity_bin()
 module front(model, additional_height = 0, additional_length = 0)
 {
     slope_height = bin.height_unit * (input.units.z - 1) + additional_height;
-    slope_radius = min(slope_height, model.slope_radius);
+    slope_radius = slope_height;
     front_length = x_length() - 2 * bin.wall_thickness + additional_length;
 
-    back(bin.wall_thickness) wall() position(BACK) slope();
+    back(bin.wall_thickness) up(slope_height) wall() position(BACK + TOP) slope();
 
     module wall()
     {
-        cuboid(size = [ front_length, model.spacer_distance, slope_height ], anchor = BOT + FWD) children();
+        cuboid(size = [ front_length, model.spacer_distance, printer.skin.height ], anchor = TOP + FWD) children();
     }
 
     module slope()
     {
-        diff() cuboid(size = [ front_length, slope_radius, slope_radius ], anchor = FWD) position(BOT + BACK)
-            tag("remove") xcyl(h = front_length, r = slope_radius, anchor = BOT);
+        back(slope_radius + printer.skin.height)
+        render() difference()
+        {
+            pie_slice(h = front_length, r = slope_radius + printer.skin.height, ang = 90, orient = LEFT, spin = 180,
+                      anchor = CENTER);
+            pie_slice(h = front_length, r = slope_radius, ang = 90, orient = LEFT, spin = 180, anchor = CENTER);
+        }
     }
 }
 // TODO: get rid of clearance being applied by difference
@@ -205,9 +215,12 @@ module block(model)
     {
         hollow_part(height = model.height0, bottom_width = model.width0, top_width = model.width0);
         down(model.height0) hollow_part(height = model.height1, bottom_width = model.width1, top_width = model.width0);
-        down(model.height0 + model.height1) hollow_part(height = model.height2, bottom_width = model.width2, top_width = model.width1);
-        down(model.height0 + model.height1 + model.height2) full_part(height = model.height3, bottom_width = model.width3, top_width = model.width2)
-        position(UP + FWD) front(front, additional_height = model.height0 + model.height1 + model.height2, additional_length = -2 * (model.width3 - bin.wall_thickness) );
+        down(model.height0 + model.height1)
+            hollow_part(height = model.height2, bottom_width = model.width2, top_width = model.width1);
+        down(model.height0 + model.height1 + model.height2)
+            full_part(height = model.height3, bottom_width = model.width3, top_width = model.width2) position(UP + FWD)
+                fwd(model.width3) front(front, additional_height = model.height0 + model.height1 + model.height2,
+                                        additional_length = -2 * (model.width3 - bin.wall_thickness));
 
         module hollow_part(height, bottom_width, top_width)
         {
@@ -218,10 +231,12 @@ module block(model)
                 children();
         }
 
-        module full_part(height, bottom_width, top_width){
-            prismoid(h = height, size1 = [x_length, y_length] - 2 * [ bottom_width, bottom_width ],
-                         rounding1 = standard.outer_rounding - bottom_width, size2 = [x_length, y_length] - 2 * [ top_width, top_width ],
-                         rounding2 = standard.outer_rounding - top_width, anchor = TOP) children();
+        module full_part(height, bottom_width, top_width)
+        {
+            prismoid(h = height, size1 = [ x_length, y_length ] - 2 * [ bottom_width, bottom_width ],
+                     rounding1 = standard.outer_rounding - bottom_width,
+                     size2 = [ x_length, y_length ] - 2 * [ top_width, top_width ],
+                     rounding2 = standard.outer_rounding - top_width, anchor = TOP) children();
         }
     }
 }
@@ -293,7 +308,7 @@ module upper(model, label)
                 position(LEFT + TOP) right(model.width0) single_holder(LEFT);
                 position(RIGHT + TOP) left(model.width0) single_holder(RIGHT);
                 position(BOT) label();
-                position(RIGHT + TOP + BACK) down(label.holder.z) fwd(model.width0) tag("wall_hole") wall_hole();
+                position(RIGHT + TOP + BACK) down(label.holder.z) fwd(model.width0 + (label.cover.y/2) ) tag("wall_hole") wall_hole();
                 children();
             }
 
